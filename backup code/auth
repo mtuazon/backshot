@@ -1,0 +1,87 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import sqlite3
+import bcrypt
+import uuid
+
+app = Flask(__name__)
+CORS(app)  # Enable CORS for frontend requests
+
+# Function to connect to the SQLite database
+def get_db_connection():
+    conn = sqlite3.connect("users.db")  # Using the existing database
+    conn.row_factory = sqlite3.Row  # Fetch rows as dictionaries
+    return conn
+
+# Ensure 'users' table exists
+def initialize_db():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT UNIQUE NOT NULL,
+        username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    
+    conn.commit()
+    conn.close()
+
+initialize_db()  # Run this when the auth system starts
+
+# 🔹 User Registration API
+@app.route("/register", methods=["POST"])
+def register():
+    data = request.json
+    username = data.get("username")
+    email = data.get("email")
+    password = data.get("password")
+    confirm_password = data.get("confirmPassword")
+
+    if not username or not email or not password or not confirm_password:
+        return jsonify({"error": "All fields are required"}), 400
+
+    if password != confirm_password:
+        return jsonify({"error": "Passwords do not match"}), 400
+
+    hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+    user_id = str(uuid.uuid4())  # Generate unique user ID
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO users (user_id, username, email, password) VALUES (?, ?, ?, ?)",
+                       (user_id, username, email, hashed_password))
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "User registered successfully!", "user_id": user_id}), 201
+
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "Username or Email already exists"}), 400
+
+# 🔹 User Login API
+@app.route("/login", methods=["POST"])
+def login():
+    data = request.json
+    username = data.get("username")
+    password = data.get("password")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE username=?", (username,))
+    user = cursor.fetchone()
+    conn.close()
+
+    if user and bcrypt.checkpw(password.encode("utf-8"), user["password"]):
+        return jsonify({"message": "Login successful", "user_id": user["user_id"]}), 200
+    else:
+        return jsonify({"error": "Invalid username or password"}), 401
+
+# Run the authentication Flask app separately
+if __name__ == '__main__':
+    app.run(port=5001, debug=True)  # Runs on port 5001 to keep it separate from inventory system
