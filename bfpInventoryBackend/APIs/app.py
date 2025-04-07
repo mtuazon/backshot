@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sqlite3
+import uuid  # Import for UUID generation
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend requests
@@ -16,11 +17,11 @@ def get_db_connection():
 def get_offices():
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    cursor.execute("SELECT property, office_name FROM offices")  # Updated column names
+    # Select the correct columns from the offices table
+    cursor.execute("SELECT property, office_name FROM offices")
     offices = cursor.fetchall()
     conn.close()
-
+    # Map the returned keys to "id" and "name" for the frontend
     return jsonify([{"id": row["property"], "name": row["office_name"]} for row in offices]), 200
 
 # Fetch all inventory items with office names
@@ -28,16 +29,15 @@ def get_offices():
 def get_items():
     conn = get_db_connection()
     cursor = conn.cursor()
-
+    # Note: the inventory table must have an "id" column (UUID) now
     cursor.execute("""
-        SELECT inventory.property AS item_id, inventory.pc_name, inventory.brand_model, 
+        SELECT inventory.id AS item_id, inventory.pc_name, inventory.brand_model, 
                inventory.processor, inventory.motherboard, inventory.ram, inventory.graphics_processing, 
                inventory.internal_memory, inventory.mac_address, inventory.operating_system, 
                inventory.microsoft_office, inventory.antivirus_software, offices.office_name
         FROM inventory
         JOIN offices ON inventory.office_id = offices.property
     """)
-
     items = cursor.fetchall()
     conn.close()
 
@@ -88,22 +88,21 @@ def add_item():
     # Ensure the selected office exists
     cursor.execute("SELECT property FROM offices WHERE property = ?", (office_id,))
     office = cursor.fetchone()
-
     if not office:
         conn.close()
         return jsonify({"error": "Invalid office ID"}), 400
 
-    item_id = str(uuid.uuid4())  # Generate unique UUID for property
+    # Generate unique UUID for the inventory item's primary key (id)
+    item_id = str(uuid.uuid4())
 
     try:
         cursor.execute("""
-            INSERT INTO inventory (property, office_id, computer_device, pc_name, brand_model, processor, motherboard, 
+            INSERT INTO inventory (id, office_id, computer_device, pc_name, brand_model, processor, motherboard, 
                                   ram, graphics_processing, internal_memory, mac_address, operating_system, 
                                   microsoft_office, antivirus_software)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (item_id, office_id, "Computer", pc_name, brand_model, processor, motherboard, ram,
               graphics_processing, internal_memory, mac_address, operating_system, microsoft_office, antivirus_software))
-
         conn.commit()
         conn.close()
         return jsonify({"message": "Item added successfully"}), 201
@@ -133,7 +132,6 @@ def update_item(item_id):
 
     cursor.execute("SELECT property FROM offices WHERE property = ?", (office_id,))
     office = cursor.fetchone()
-    
     if not office:
         conn.close()
         return jsonify({"error": "Invalid office ID"}), 400
@@ -143,14 +141,12 @@ def update_item(item_id):
         SET office_id=?, pc_name=?, brand_model=?, processor=?, motherboard=?, ram=?, 
             graphics_processing=?, internal_memory=?, mac_address=?, operating_system=?, 
             microsoft_office=?, antivirus_software=?
-        WHERE property=?
+        WHERE id=?
     """, (office_id, pc_name, brand_model, processor, motherboard, ram,
           graphics_processing, internal_memory, mac_address, operating_system, 
           microsoft_office, antivirus_software, item_id))
-
     conn.commit()
     conn.close()
-
     return jsonify({"message": "Item updated successfully"}), 200
 
 # Remove an inventory item
@@ -158,13 +154,10 @@ def update_item(item_id):
 def delete_item(item_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    cursor.execute("DELETE FROM inventory WHERE property=?", (item_id,))
+    cursor.execute("DELETE FROM inventory WHERE id=?", (item_id,))
     conn.commit()
     conn.close()
-
     return jsonify({"message": "Item deleted successfully"}), 200
 
-# Run the Flask app
 if __name__ == '__main__':
     app.run(debug=True)

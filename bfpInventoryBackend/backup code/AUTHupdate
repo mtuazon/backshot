@@ -3,14 +3,14 @@ from flask_cors import CORS
 import sqlite3
 import bcrypt
 import uuid
-import jwt  # Make sure this is PyJWT (pip install PyJWT)
+import jwt
 import datetime
 
 app = Flask(__name__)
 CORS(app)
 
-# 🔐 Secret Key for JWT (change to a secure random string in production)
-app.config['SECRET_KEY'] = 'your_secret_key_here'
+# 🔐 Secret Key for JWT
+app.config['SECRET_KEY'] = 'your_secret_key_here'  # Change this to a secure random string
 
 # Connect to DB
 def get_db_connection():
@@ -69,13 +69,11 @@ def register():
 
 # 🔹 Generate JWT Tokens
 def generate_tokens(user_id):
-    # Generate access token valid for 15 minutes
     access_token = jwt.encode({
         'user_id': user_id,
-        'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=30)
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=15) # minutes=15
     }, app.config['SECRET_KEY'], algorithm="HS256")
 
-    # Generate refresh token valid for 7 days
     refresh_token = jwt.encode({
         'user_id': user_id,
         'exp': datetime.datetime.utcnow() + datetime.timedelta(days=7)
@@ -99,7 +97,7 @@ def login():
         user_id = user["user_id"]
         access_token, refresh_token = generate_tokens(user_id)
 
-        # Store refresh token in the database
+        # Store refresh token
         cursor.execute("UPDATE users SET refresh_token=? WHERE user_id=?", (refresh_token, user_id))
         conn.commit()
         conn.close()
@@ -135,7 +133,7 @@ def refresh():
         if not user:
             return jsonify({"error": "Invalid refresh token"}), 403
 
-        # Generate new access token (the refresh token remains the same)
+        # Generate new access token
         new_access_token, _ = generate_tokens(user_id)
         return jsonify({"access_token": new_access_token}), 200
 

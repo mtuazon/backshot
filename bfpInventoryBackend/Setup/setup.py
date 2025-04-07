@@ -1,51 +1,74 @@
 import sqlite3
 
-# List of office names from the provided image
-office_names = [
-    "ITCU/FCOS", "ROD", "CHAPLAIN", "FSED", "LEGAL", "HEARING", "ENGINEERING",
-    "GSS", "PIU", "IAS", "IIS", "ADMIN", "ACCOUNTING", "BUDGET", "PLANS",
-    "ARDA", "RD", "ARDO", "ARCS", "FINANCE", "SAO", "CRS", "HSU"
-]
+def create_database():
+    # Connect to (or create) the database file
+    conn = sqlite3.connect("bfp_inventory.db")
+    cursor = conn.cursor()
+    
+    # Create the 'inventory' table with all the fields required by your Add.jsx form.
+    # Note the 'property' column will be used as the Property ID.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS inventory (
+            property INTEGER PRIMARY KEY AUTOINCREMENT,
+            office_id TEXT,                       -- Office identifier (if needed)
+            office_name TEXT,                     -- Office name
+            computer_device TEXT,
+            pc_name TEXT,
+            brand_model TEXT,
+            processor TEXT,
+            motherboard TEXT,
+            ram TEXT,
+            graphics_processing TEXT,
+            internal_memory TEXT,
+            mac_address TEXT,
+            operating_system TEXT,
+            microsoft_office TEXT,
+            antivirus_software TEXT
+        )
+    ''')
+    
+    # Create the 'offices' table with columns 'property' and 'office_name'
+    # Here, 'property' is the auto-increment primary key.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS offices (
+            property INTEGER PRIMARY KEY AUTOINCREMENT,
+            office_name TEXT NOT NULL UNIQUE
+        )
+    ''')
+    
+    # Seed the 'offices' table with your provided list if it's empty.
+    cursor.execute("SELECT COUNT(*) FROM offices")
+    if cursor.fetchone()[0] == 0:
+        offices = [
+            ("SAO",),
+            ("FSED",),
+            ("FINANCE",),
+            ("CRS",),
+            ("HSU",),
+            ("ACCOUNTING",),
+            ("BUDGET",),
+            ("ADMIN",),
+            ("PLANS",),
+            ("RD",),
+            ("ARDA",),
+            ("ARDO",),
+            ("RCS",),
+            ("ITCU/FCOS",),
+            ("ROD",),
+            ("CHAPLAIN",),
+            ("LEGAL",),
+            ("HEARING",),
+            ("RLD",),
+            ("GSS",),
+            ("PIU",),
+            ("IAS",),
+            ("IIS",)
+        ]
+        cursor.executemany("INSERT INTO offices (office_name) VALUES (?)", offices)
+    
+    conn.commit()
+    conn.close()
+    print("Database created successfully with the required tables and fields.")
 
-# Connect to SQLite database (or create it)
-conn = sqlite3.connect("inventory.db")
-cursor = conn.cursor()
-
-# Create Offices Table (Stores office information)
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS offices (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    office_name TEXT UNIQUE NOT NULL
-)
-""")
-
-# Create Inventory Table (Stores computer details and links to offices)
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS inventory (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    office_id INTEGER NOT NULL,
-    computer_device TEXT NOT NULL,
-    pc_name TEXT NOT NULL,
-    brand_model TEXT,
-    processor TEXT,
-    motherboard TEXT,
-    ram TEXT,
-    graphics_processing TEXT,
-    internal_memory TEXT,
-    mac_address TEXT UNIQUE NOT NULL,
-    operating_system TEXT,
-    microsoft_office TEXT,
-    antivirus_software TEXT,
-    FOREIGN KEY (office_id) REFERENCES offices (id) ON DELETE CASCADE
-)
-""")
-
-# Insert Offices (if not exists)
-for office in office_names:
-    cursor.execute("INSERT OR IGNORE INTO offices (office_name) VALUES (?)", (office,))
-
-# Commit and close connection
-conn.commit()
-conn.close()
-
-print("Database and tables created successfully! Offices added.")
+if __name__ == "__main__":
+    create_database()
